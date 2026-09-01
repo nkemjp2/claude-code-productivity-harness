@@ -1,0 +1,193 @@
+{
+  "_comment": "GENERATED from docs/event-map.verified.md by src/build/generate-event-map.mjs. Do not hand-edit; CI regenerates and fails on a diff.",
+  "auditedVersion": "2.1.247",
+  "auditedOn": "2026-09-01",
+  "events": {
+    "PreToolUse": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`hookSpecificOutput.permissionDecision: \"deny\"` + `permissionDecisionReason`",
+      "provenance": "design-§8"
+    },
+    "PostToolUse": {
+      "exists": true,
+      "blocks": "no (stderr surfaced)",
+      "shape": "stderr",
+      "provenance": "design-§8"
+    },
+    "PostToolUseFailure": {
+      "exists": true,
+      "blocks": "no (stderr surfaced)",
+      "shape": "stderr",
+      "provenance": "design-§8"
+    },
+    "PostToolBatch": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "Notification": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "`terminalSequence`",
+      "provenance": "design-§8"
+    },
+    "UserPromptSubmit": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "UserPromptExpansion": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    },
+    "SessionStart": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "`hookSpecificOutput.additionalContext`",
+      "provenance": "design-§8"
+    },
+    "SessionEnd": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "— (1.5s shared budget)",
+      "provenance": "design-§8"
+    },
+    "Stop": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "StopFailure": {
+      "exists": true,
+      "blocks": "no (output ignored)",
+      "shape": "—",
+      "provenance": "design-§8"
+    },
+    "SubagentStart": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "context injection",
+      "provenance": "design-§8"
+    },
+    "SubagentStop": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "PreCompact": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "PostCompact": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "context injection",
+      "provenance": "design-§8"
+    },
+    "PermissionRequest": {
+      "exists": true,
+      "blocks": "via decision object",
+      "shape": "decision object",
+      "provenance": "design-§8"
+    },
+    "PermissionDenied": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    },
+    "Setup": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "—",
+      "provenance": "design-§8"
+    },
+    "TeammateIdle": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`continue: false` + `stopReason` on escalation",
+      "provenance": "design-§8"
+    },
+    "TaskCreated": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "TaskCompleted": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`continue: false` + `stopReason` on escalation",
+      "provenance": "design-§8"
+    },
+    "Elicitation": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    },
+    "ElicitationResult": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    },
+    "ConfigChange": {
+      "exists": true,
+      "blocks": "yes",
+      "shape": "`decision: \"block\"` + `reason`",
+      "provenance": "design-§8"
+    },
+    "WorktreeCreate": {
+      "exists": true,
+      "blocks": "yes (any non-zero)",
+      "shape": "none — stdout is read as the worktree path",
+      "provenance": "design-§8"
+    },
+    "WorktreeRemove": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "—",
+      "provenance": "design-§8"
+    },
+    "InstructionsLoaded": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "—",
+      "provenance": "design-§8"
+    },
+    "CwdChanged": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    },
+    "FileChanged": {
+      "exists": true,
+      "blocks": "no",
+      "shape": "—",
+      "provenance": "design-§8"
+    },
+    "DirectoryAdded": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    },
+    "MessageDisplay": {
+      "exists": true,
+      "blocks": "unverified",
+      "shape": "unverified",
+      "provenance": "none"
+    }
+  }
+}

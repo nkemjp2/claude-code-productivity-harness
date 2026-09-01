@@ -29,3 +29,9 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Generated files match their source (ADR-0006)
+        # The runner reads src/generated/event-map.json; docs/event-map.verified.md
+        # is the source of truth. A generated file that can drift from its source
+        # is a generated file nobody can trust — the same discipline hooks.json
+        # gets under M2.
+        run: npm run check:generated
