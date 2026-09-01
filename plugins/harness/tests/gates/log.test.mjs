@@ -59,6 +59,11 @@ test("concurrent runners produce intact per-process files that merge cleanly", a
 
   const dir = join(repo, ".harness", "events");
   const files = readdirSync(dir);
+  // Exactly N, not "at most N". This assertion failed on Windows CI at eleven
+  // files for twelve processes, because pids are recycled and two sequential
+  // runners shared one. The name now carries a per-process nonce, so the
+  // invariant holds by construction rather than by an argument about how a
+  // particular platform reuses pids.
   assert.equal(files.length, N, `expected one log file per process, saw ${files.length}`);
 
   /** @type {any[]} */
@@ -97,7 +102,7 @@ test("log file names carry session and pid, so two processes cannot collide", ()
   const files = readdirSync(join(repo, ".harness", "events"));
   assert.equal(files.length, 1);
   assert.match(String(files[0]), /sess-abc/, "the session id must be in the file name");
-  assert.match(String(files[0]), /\d+/, "the pid must be in the file name");
+  assert.match(String(files[0]), /\.\d+-[a-z0-9]+\.jsonl$/, "the pid AND a per-process nonce must be in the name");
   assert.match(String(files[0]), /\.jsonl$/);
 });
 

@@ -11,8 +11,19 @@ import { join } from "node:path";
  * silent: a file that mostly parses, a few torn lines, and every metric in
  * R-M1.3 quietly wrong.
  *
- * So: one file per process, named by session and pid, merged at read time.
- * No shared handle exists anywhere in the harness, which is prohibition 8.
+ * So: one file per process, merged at read time. No shared handle exists
+ * anywhere in the harness, which is prohibition 8.
+ *
+ * The file name carries a per-process nonce as well as the pid. The pid alone
+ * was not enough, and Windows CI is what proved it: twelve concurrent runners
+ * produced eleven files, because **pids are recycled**. Two runners in the same
+ * session, one after the other, landed on the same pid and shared a file.
+ *
+ * That particular case was still safe — pids are unique among *live* processes,
+ * so two concurrent writers can never collide — but "safe because of how this
+ * platform recycles pids" is a platform assumption, and platform assumptions
+ * are the thing this moat exists to remove. The nonce makes one-file-per-process
+ * true by construction rather than by argument.
  *
  * @typedef {Record<string, unknown>} EventRecord
  */
@@ -21,13 +32,20 @@ import { join } from "node:path";
 const MAX_RECORD_BYTES = 4096;
 
 /**
+ * Unique to this process, computed once. Not a security value — just something
+ * the operating system cannot hand to a later process the way it hands back a
+ * pid.
+ */
+const NONCE = Math.random().toString(36).slice(2, 8);
+
+/**
  * @param {string} root
  * @param {string} sessionId
  * @returns {string}
  */
 function logPath(root, sessionId) {
   const safe = sessionId.replace(/[^A-Za-z0-9_-]/g, "_") || "nosession";
-  return join(root, ".harness", "events", `${safe}.${process.pid}.jsonl`);
+  return join(root, ".harness", "events", `${safe}.${process.pid}-${NONCE}.jsonl`);
 }
 
 /**
