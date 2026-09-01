@@ -29,6 +29,13 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Validate hooks.json (M2, M23)
+        run: npm run check:hooks
+      - name: Preflight — harness doctor on this platform
+        # E8: doctor passing on all three platforms is a CI requirement, not a
+        # single-session one. It is the only check that resolves verbs against
+        # a real PATH and spawns a real child, which is where Windows differs.
+        run: npm run doctor
       - name: Generated files match their source (ADR-0006)
         # The runner reads src/generated/event-map.json; docs/event-map.verified.md
         # is the source of truth. A generated file that can drift from its source

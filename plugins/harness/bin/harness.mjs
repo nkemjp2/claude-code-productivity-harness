@@ -24,12 +24,23 @@ const COMMANDS = {
 };
 
 /** @type {Record<string, number>} */
-const PHASE = { init: 3, doctor: 2, status: 3, mode: 3, promote: 7, adapters: 5 };
+const PHASE = { init: 3, status: 3, mode: 3, promote: 7, adapters: 5 };
 
 const argv = process.argv.slice(2);
 const command = argv[0];
 
-if (command === undefined || command === "--help" || command === "-h") {
+if (command === "doctor") {
+  // Wired first because CI runs it on every job, on every platform. The other
+  // subcommands arrive with their phases.
+  const { runDoctor, formatReport } = await import("../src/commands/doctor.mjs");
+  const { resolveRepoRoot } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? process.env.CLAUDE_PROJECT_DIR ?? ".";
+  const report = await runDoctor({ root });
+  process.stderr.write(formatReport(report));
+  process.exitCode = report.ok ? 0 : 1;
+}
+
+else if (command === undefined || command === "--help" || command === "-h") {
   process.stderr.write("harness <command>\n\n");
   for (const [name, description] of Object.entries(COMMANDS)) {
     process.stderr.write(`  ${name.padEnd(10)} ${description}\n`);

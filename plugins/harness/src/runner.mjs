@@ -9,6 +9,7 @@ import { loadPolicy } from "./lib/policy.mjs";
 import { loadManifest } from "./lib/manifest.mjs";
 import { appendRecord } from "./lib/log.mjs";
 import { decide, finish, diagnostic } from "./lib/emit.mjs";
+import { detectClientVersion, compareVersions } from "./lib/client.mjs";
 
 /**
  * The single entry point for every gate.
@@ -51,43 +52,20 @@ function harnessVersion() {
 }
 
 /**
- * The client version, and how confident we are in it.
+ * The client version, with its provenance. See lib/client.mjs for why this is
+ * not simply a field on the payload.
  *
- * The hook payload carries `session_id`, `transcript_path`, `cwd` and
- * `prompt_id` — verified against client 2.1.247 — and no version field. So the
- * environment is the only source, and when it is absent the audited baseline
- * stands in. The provenance is recorded rather than hidden, because a version
- * guard running on an assumed version is a different claim from one running on
- * a reported version.
- *
- * @returns {{ version: string, source: "env" | "assumed" }}
+ * @returns {{ version: string, source: "env" | "ai_agent" | "assumed" }}
  */
 function clientVersion() {
-  const fromEnv = process.env.CLAUDE_CODE_VERSION;
-  if (fromEnv !== undefined && fromEnv !== "") return { version: fromEnv, source: "env" };
+  let audited = "0.0.0";
   try {
     const map = JSON.parse(readFileSync(join(PLUGIN_ROOT, "src", "generated", "event-map.json"), "utf8"));
-    const audited = map["auditedVersion"];
-    if (typeof audited === "string") return { version: audited, source: "assumed" };
+    if (typeof map["auditedVersion"] === "string") audited = map["auditedVersion"];
   } catch {
-    /* fall through */
+    /* the fallback below stands */
   }
-  return { version: "0.0.0", source: "assumed" };
-}
-
-/**
- * @param {string} a
- * @param {string} b
- * @returns {number} negative when a < b
- */
-function compareVersions(a, b) {
-  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
-  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
+  return detectClientVersion(process.env, audited);
 }
 
 /** Where gate modules live. Overridable so fixtures can be exercised. */
