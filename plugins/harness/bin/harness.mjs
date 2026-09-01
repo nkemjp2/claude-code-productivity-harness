@@ -15,6 +15,9 @@
 
 /** @type {Record<string, string>} */
 const COMMANDS = {
+  "dry-run": "Replay recent commits through the gates to estimate noise BEFORE enforcing",
+  latency: "Per-gate p50/p95 from the event log — the cost of having the gates on",
+  defect: "Record a defect against the commits it is attributed to (the escape-rate denominator)",
   classify: "Record an escaped defect against one of five classifications, with its mandated remedy",
   replay: "Address a session's transcript, event log and evidence bundles together",
   metrics: "The R-M1.3 metrics computed from the event log, with reasons for those that cannot be",
@@ -130,6 +133,46 @@ else if (command === "adapters") {
   process.stderr.write("harness adapters\n\n  No adapters are vendored yet.\n");
   process.stderr.write("  Each must declare an upstream version range and a licence on the allowlist,\n");
   process.stderr.write("  and is invoked across a process boundary so its terms never reach this source.\n");
+}
+
+else if (command === "dry-run") {
+  const { runDryRun, formatDryRun } = await import("../src/commands/dryrun.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const n = Number(argv[1]);
+  process.stderr.write(formatDryRun(await runDryRun({ root, commits: Number.isFinite(n) ? n : 50 })));
+}
+
+else if (command === "defect") {
+  const { recordDefect } = await import("../src/lib/defects.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const ci = argv.indexOf("--commits");
+  try {
+    const r = recordDefect(root, {
+      id: argv[1] ?? "",
+      commits: ci === -1 ? [] : (argv[ci + 1] ?? "").split(",").filter(Boolean),
+      note: argv.slice(argv.indexOf("--note") + 1).join(" "),
+    });
+    process.stderr.write(`recorded ${r.id} against ${r.commits.join(", ")}\n`);
+  } catch (err) {
+    process.stderr.write(`harness defect refused: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write("usage: harness defect <id> --commits <sha,sha> --note <text>\n");
+    process.exitCode = 2;
+  }
+}
+
+else if (command === "latency") {
+  const { gateLatency } = await import("../src/lib/latency.mjs");
+  const { readRecords } = await import("../src/lib/log.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const rows = gateLatency(readRecords(root));
+  process.stderr.write("harness latency — slowest p95 first\n\n");
+  if (rows.length === 0) process.stderr.write("  no gate has run yet, so there is nothing to measure\n");
+  for (const r of rows) {
+    process.stderr.write(`  ${String(r.p95).padStart(6)}ms p95  ${String(r.p50).padStart(5)}ms p50  ${r.gate.padEnd(22)} ${r.runs} run(s)\n`);
+  }
 }
 
 else if (command === "doctor") {

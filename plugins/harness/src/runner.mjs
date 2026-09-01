@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { readStdin, parseEvent, str } from "./lib/event.mjs";
 import { resolveRepoRoot, currentCommit } from "./lib/repo.mjs";
-import { loadPolicy } from "./lib/policy.mjs";
+import { loadPolicy, modeForGate } from "./lib/policy.mjs";
 import { loadManifest } from "./lib/manifest.mjs";
 import { appendRecord, readRecords } from "./lib/log.mjs";
 import { decide, finish, diagnostic } from "./lib/emit.mjs";
@@ -261,8 +261,12 @@ async function main() {
   }
 
   const policy = loadPolicy(root);
-  if (!policy.enabled || policy.mode === "dormant") {
-    record({ verdict: "skip", reason: `policy ${policy.enabled ? policy.mode : "disabled"}` });
+  // Per-gate mode. A gate may be dormant while the repository enforces, which
+  // is how a noisy gate is demoted without abandoning enforcement everywhere
+  // else (R-F2.5).
+  const gateMode = modeForGate(policy, gateId);
+  if (!policy.enabled || gateMode === "dormant") {
+    record({ verdict: "skip", reason: `policy ${policy.enabled ? gateMode : "disabled"}`, gate_mode: gateMode });
     finish({ exitCode: 0, payload: null });
     return;
   }
@@ -340,8 +344,8 @@ async function main() {
   // 7. Observe mode downgrades every block to a logged warn. This is what
   //    makes adoption survivable: a week of real verdicts before anything is
   //    refused, so a noisy gate is retired rather than routed around.
-  if (policy.mode === "observe" && verdict === "block") {
-    record({ verdict: "warn", downgraded_from: "block", reason: reason ?? null });
+  if (gateMode === "observe" && verdict === "block") {
+    record({ verdict: "warn", downgraded_from: "block", reason: reason ?? null, gate_mode: gateMode });
     finish({ exitCode: 0, payload: { systemMessage: `harness (observe): ${reason ?? "would have blocked"}` } });
     return;
   }

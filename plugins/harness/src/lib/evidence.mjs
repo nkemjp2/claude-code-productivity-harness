@@ -24,6 +24,15 @@ import { taskDir } from "./task.mjs";
 /** Verb name to bundle key. The bundle's vocabulary is stable; the manifest's is per-repo. */
 const KEY = { typecheck: "typecheck", "test:affected": "tests_affected", test: "tests_affected", "lint:diff": "lint" };
 
+/**
+ * Most repositories have `test` and not `test:affected`, so demanding the
+ * latter would block the DoD gate on something they cannot cheaply produce.
+ * Falling back is right; falling back SILENTLY is not — a bundle that ran the
+ * whole suite must never read as evidence that the affected tests passed.
+ * @type {Record<string, string>}
+ */
+const SCOPE = { "test:affected": "affected", test: "full suite" };
+
 /** Elements a complete bundle must carry, and why each one matters. */
 const REQUIRED = [
   { key: "typecheck", why: "a clean typecheck at this commit" },
@@ -57,6 +66,7 @@ export async function captureEvidence(opts) {
       command: result.command,
       exit_code: result.code,
       output: outFile,
+      ...(SCOPE[verb] === undefined ? {} : { scope: SCOPE[verb] }),
       // The provenance stamp. Its absence is what distinguishes an attestation
       // from evidence, so it is checked rather than assumed.
       written_by: "runner",

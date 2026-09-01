@@ -112,13 +112,26 @@ export function computeMetrics(log) {
     });
   }
 
-  // 6. Escape rate — the primary outcome, and the one this harness cannot see.
-  report["escape_rate"] = unavailable(
-    "post-merge defects are not in the event log and cannot be. R-L7.3a is explicit that attribution " +
-      "is only half the substrate: every defect record must also carry the commits it is attributed to, " +
-      "by a convention enforced at defect close. Without that denominator there is no rate, and " +
-      "reporting 0 would be a claim of perfection assembled from missing data.",
+  // 6. Escape rate — the primary outcome. Computable only once BOTH halves of
+  //    R-L7.3a exist: attribution on the commit side, and defect records naming
+  //    the commits they are attributed to. `harness defect` supplies the second.
+  const defects = log.filter((r) => r["event"] === "harness.defect");
+  const changes = new Set(
+    log.filter((r) => typeof r["commit"] === "string" && r["commit"] !== "").map((r) => String(r["commit"])),
   );
+  report["escape_rate"] =
+    defects.length === 0 || changes.size === 0
+      ? unavailable(
+          "needs both halves of R-L7.3a. Attribution is on the commit side already; the other half is " +
+            "defect records naming the commits they are attributed to, recorded with `harness defect`. " +
+            `Currently ${defects.length} defect(s) and ${changes.size} attributed change(s). Reporting 0 ` +
+            "would be a claim of perfection assembled from an empty table.",
+        )
+      : available({
+          defects: defects.length,
+          changes: changes.size,
+          rate: Number((defects.length / changes.size).toFixed(4)),
+        });
 
   // 7. Rule-load coverage — needs the InstructionsLoaded gate.
   report["rule_load_coverage"] = unavailable(
