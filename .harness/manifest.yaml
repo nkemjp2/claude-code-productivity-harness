@@ -1,0 +1,26 @@
+# .harness/manifest.yaml — the toolchain adapter (R-F1.1).
+#
+# Gates invoke abstract verbs, never commands, so the same gate works across
+# stacks. Written by `harness init` from this repository's own package scripts
+# and CI configuration; anything that did not resolve is listed at the bottom
+# rather than guessed at.
+#
+# required: true  -> a missing tool is an error, and with failClosed it blocks.
+# required: false -> a missing tool skips with a warning, so work continues.
+#
+# A required tool that quietly skips is the silently disabled gate this whole
+# design exists to prevent (M13, R-F2.4). Choose deliberately.
+verbs:
+  lint:
+    command: node
+    args:
+      - "tools/lint/cli.mjs"
+    required: false
+  test:
+    command: node
+    args:
+      - "--test"
+    required: false
+
+# Not configured, and deliberately so:
+#   - typecheck: 'tsc' from package.json scripts.typecheck does not resolve on this machine, so it was NOT written to the manifest. Configure it by hand once the tool is installed.

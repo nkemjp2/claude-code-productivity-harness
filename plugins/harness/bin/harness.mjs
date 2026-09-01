@@ -24,12 +24,58 @@ const COMMANDS = {
 };
 
 /** @type {Record<string, number>} */
-const PHASE = { init: 3, status: 3, mode: 3, promote: 7, adapters: 5 };
+const PHASE = { promote: 7, adapters: 5 };
 
 const argv = process.argv.slice(2);
 const command = argv[0];
 
-if (command === "doctor") {
+if (command === "init") {
+  const { runInit } = await import("../src/commands/init.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  try {
+    const result = await runInit({ root });
+    process.stderr.write(`harness init — ${root}\n\n`);
+    for (const p of result.probed) process.stderr.write(`  probed     ${p}\n`);
+    for (const c of result.configured) process.stderr.write(`  configured ${c}\n`);
+    for (const r of result.reported) process.stderr.write(`  REPORTED   ${r}\n`);
+    process.stderr.write("\nmode: observe. Collect a week of verdicts before promoting.\n");
+  } catch (err) {
+    process.stderr.write(`harness init refused: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exitCode = 2;
+  }
+}
+
+else if (command === "mode") {
+  const { runMode } = await import("../src/commands/mode.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const target = argv[1] ?? "";
+  const reasonFlag = argv.indexOf("--reason");
+  const reason = reasonFlag === -1 ? "" : argv.slice(reasonFlag + 1).join(" ");
+  try {
+    const { from, to } = await runMode({ root, mode: target, reason });
+    process.stderr.write(`harness mode: ${from} -> ${to}\n`);
+  } catch (err) {
+    process.stderr.write(`harness mode refused: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write("usage: harness mode <dormant|observe|enforce> --reason <why>\n");
+    process.exitCode = 2;
+  }
+}
+
+else if (command === "status") {
+  const { runStatus, formatStatus } = await import("../src/commands/status.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  try {
+    process.stderr.write(formatStatus(await runStatus({ root })));
+  } catch (err) {
+    process.stderr.write(`harness status: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exitCode = 2;
+  }
+}
+
+else if (command === "doctor") {
   // Wired first because CI runs it on every job, on every platform. The other
   // subcommands arrive with their phases.
   const { runDoctor, formatReport } = await import("../src/commands/doctor.mjs");

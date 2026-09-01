@@ -1,0 +1,53 @@
+# .harness/policy.yaml — modes, protected paths, ratchets.
+#
+# `harness init` leaves a repository in observe, never enforce. A week of real
+# verdicts arrives before anything is refused, so a noisy gate is retired under
+# R-F2.5 rather than routed around.
+enabled: true
+mode: observe
+
+# Ratchets initialise at a MEASURED baseline or hold no value at all.
+# A ratchet seeded with a target fires on day one against a standard this
+# repository has never met, and the credible response to that is to switch the
+# harness off.
+ratchets:
+  mutation_score:
+    measured: false
+    value: null
+    note: "no mutation runner is configured; the ratchet is declared so it cannot be quietly forgotten, and holds no value until one runs"
+  typecheck_clean:
+    measured: false
+    value: null
+    note: "measured at init when a typecheck verb resolved; otherwise unmeasured"
+  affected_test_seconds:
+    measured: false
+    value: null
+    note: "requires a test:affected verb and one real run; not measured during setup because a full suite is a minutes-long side effect"
+
+# Protected paths need explicit human approval (R-F3.7).
+protected_paths:
+  - ".harness/manifest.yaml"
+  - ".harness/policy.yaml"
+  - ".claude/settings.json"
+  - ".github/workflows/**"
+  - "**/migrations/**"
+  - "**/*.lock"
+
+# Carved out of the protected register, because task artefacts are written
+# during normal work and protecting the whole tree would block the agent from
+# its own plan (R-L0.4).
+agent_writable:
+  - ".harness/tasks/*/plan.md"
+  - ".harness/tasks/*/handoff.md"
+
+# Denied to the agent entirely. Evidence is written by the runner; an
+# agent-authored bundle is an attestation, which collapses evidence back into
+# the assertion it was meant to replace (R-L4.4a).
+agent_denied:
+  - ".harness/tasks/*/evidence/**"
+
+budgets:
+  stop_retries: 5   # below CLAUDE_CODE_STOP_HOOK_BLOCK_CAP so the harness escalates, not the platform (M6)
+
+retention:
+  event_log_days: 90

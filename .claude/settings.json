@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-harness": {
+      "source": {
+        "source": "github",
+        "repo": "nkemjp2/claude-code-productivity-harness"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "harness@claude-harness": true
+  }
+}

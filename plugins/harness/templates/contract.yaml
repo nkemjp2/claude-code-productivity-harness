@@ -1,0 +1,54 @@
+# .harness/tasks/<task-id>/contract.yaml — the work contract (R-L0.1).
+#
+# Defect rate is a function of task size and spec ambiguity, so everything
+# downstream of this file is damage limitation if this file is weak.
+#
+# Acceptance criteria use EARS notation, and validation is a SHAPE CHECK ONLY.
+# The five templates are:
+#
+#   ubiquitous          The <system> shall <response>.
+#   event-driven        When <trigger>, the <system> shall <response>.
+#   state-driven        While <state>, the <system> shall <response>.
+#   unwanted-behaviour  If <trigger>, then the <system> shall <response>.
+#   optional-feature    Where <feature>, the <system> shall <response>.
+#
+# `shall` is required. "should" and "will" are the words a criterion hides in
+# when nobody has decided whether it is a requirement.
+#
+# Nothing here checks whether a criterion is TRUE, achievable, or the one you
+# meant. That is not decidable, and a validator implying otherwise would put a
+# green tick beside a criterion nobody has thought about.
+
+id: TASK-0001
+intent: <one sentence, in the language of the person who wanted this>
+
+in_scope:
+  - <what this task covers>
+out_of_scope:
+  - <what it deliberately does not, so the agent does not helpfully expand>
+
+# Enforced, not advisory. A PreToolUse gate denies writes outside these paths
+# and names this file in the refusal (R-L0.4).
+blast_radius:
+  - "src/<module>/**"
+  - "tests/<module>/**"
+
+criteria:
+  - id: AC-1
+    statement: When <trigger>, the system shall <observable response>.
+    tests: []          # populated by the harness, verified bidirectionally at L7.2
+
+non_functional: []     # perf, sast, deps — whichever apply
+
+overrides:
+  # The L5.4 escape hatch. Ordering-based tamper protection denies a test edit
+  # after the first implementation edit in the task; this reopens it, and it
+  # requires human approval.
+  test_edit: false
+
+budget:
+  tokens: 200000
+  minutes: 90
+  # Below CLAUDE_CODE_STOP_HOOK_BLOCK_CAP so the harness escalates deliberately
+  # rather than the platform ending the session for it (M6).
+  stop_retries: 5

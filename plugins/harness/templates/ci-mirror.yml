@@ -1,0 +1,34 @@
+# The CI mirror (M12).
+#
+# Every gate that matters is also a CI check, so nothing depends solely on the
+# plugin having loaded. A session where the harness silently failed to install
+# should still fail the pull request rather than pass quietly.
+name: Harness mirror
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Preflight first. A red mirror caused by a missing tool is a different
+      # problem from a red mirror caused by a real defect, and doctor is what
+      # tells them apart.
+      - name: Harness preflight
+        run: npx --yes harness doctor || true
+
+      # Replace with this repository's verbs. These mirror .harness/manifest.yaml
+      # deliberately: the manifest is what gates invoke locally, and CI proves
+      # the same commands still pass when the agent is not in the room.
+      - name: Typecheck
+        run: npm run typecheck --if-present
+      - name: Tests
+        run: npm test --if-present
