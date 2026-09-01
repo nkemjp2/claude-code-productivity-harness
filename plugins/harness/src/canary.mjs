@@ -64,6 +64,7 @@ export async function runCanaries(opts) {
         events: staged?.events ?? [],
         manifest: staged?.manifest ?? { verbs: {} },
         runVerb: staged?.runVerb,
+        effort: staged?.effort,
       };
 
       const outcome = await gate.check(ctx);

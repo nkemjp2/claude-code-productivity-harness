@@ -20,8 +20,10 @@ import { loadManifest } from "../lib/manifest.mjs";
  * @typedef {{ name: string, measured: boolean, value: unknown, note: string }} RatchetView
  * @typedef {{ name: string, required: boolean, command: string }} VerbView
  * @typedef {{ ts: string, from: string, to: string, reason: string }} ModeChange
+ * @typedef {{ ts: string, gate: string, reason: string }} Escalation
  * @typedef {{ mode: string, enabled: boolean, ratchets: RatchetView[], verbs: VerbView[],
- *             modeChanges: ModeChange[], summary: string, deferred: string[] }} StatusReport
+ *             modeChanges: ModeChange[], silentGates: string[], escalations: Escalation[],
+ *             summary: string, deferred: string[] }} StatusReport
  */
 
 /** @param {string} root */
@@ -46,7 +48,7 @@ function readEvents(root) {
 }
 
 /**
- * @param {{ root: string }} opts
+ * @param {{ root: string, knownGates?: string[] }} opts
  * @returns {Promise<StatusReport>}
  */
 export async function runStatus(opts) {
@@ -92,17 +94,28 @@ export async function runStatus(opts) {
     `mode ${mode}${enabled ? "" : " (disabled)"} · ${enforcing} ratchet(s) enforcing, ` +
     `${declared} declared but unmeasured · ${verbs.length} verb(s) configured`;
 
+  // Gates that exist and have never fired. This is M2's roster check, and it
+  // is the one report that catches a gate which is registered, loaded, and
+  // silently never reached — invisible to every other check.
+  const events = readEvents(opts.root);
+  const fired = new Set(events.map((r) => r["gate"]).filter((g) => typeof g === "string"));
+  const silentGates = (opts.knownGates ?? []).filter((g) => !fired.has(g));
+
+  const escalations = events
+    .filter((r) => r["escalate"] === true)
+    .map((r) => ({ ts: String(r["ts"] ?? ""), gate: String(r["gate"] ?? ""), reason: String(r["reason"] ?? "") }));
+
   return {
     mode,
     enabled,
     ratchets,
     verbs,
     modeChanges,
+    silentGates,
+    escalations,
     summary,
     deferred: [
-      "gates that have not fired this week — needs the gate registry from Phase 4",
-      "open escalations — the escalation record ships with the Stop gate in Phase 4",
-      "rules past their review date — the instruction corpus is Phase 6 work",
+      "rule-load coverage — needs the InstructionsLoaded gate, which ships with the context layer",
     ],
   };
 }
@@ -123,6 +136,14 @@ export function formatStatus(report) {
   lines.push("", "  verbs");
   for (const v of report.verbs) {
     lines.push(`    ${v.required ? "required" : "optional"}  ${v.name} -> ${v.command}`);
+  }
+  if (report.silentGates.length > 0) {
+    lines.push("", "  gates that have never fired");
+    for (const g of report.silentGates) lines.push(`    ${g} — registered, and no record of it ever running`);
+  }
+  if (report.escalations.length > 0) {
+    lines.push("", "  open escalations");
+    for (const e of report.escalations) lines.push(`    ${e.ts}  ${e.gate}: ${e.reason}`);
   }
   if (report.modeChanges.length > 0) {
     lines.push("", "  mode changes");

@@ -130,6 +130,24 @@ export function discoverCandidates(root) {
  * @returns {ProbeResult}
  */
 export function probe(candidate, root) {
+  // Local bins first. Most JavaScript repositories keep their toolchain in
+  // node_modules/.bin rather than on PATH, and reporting every one of them
+  // unresolvable made `init` far less useful than it should be — found by
+  // running it against this repository, where `tsc` lives exactly there.
+  //
+  // The resolved ABSOLUTE PATH is recorded, never the bare shim name. On
+  // Windows those entries are `.cmd` shims, which are not real executables and
+  // cannot be spawned in exec form (M10); spawning the resolved path avoids
+  // the shim-by-name trap the moat names.
+  const localCandidates =
+    platform() === "win32"
+      ? [`${candidate.command}.cmd`, `${candidate.command}.exe`, candidate.command]
+      : [candidate.command];
+  for (const name of localCandidates) {
+    const local = join(root, "node_modules", ".bin", name);
+    if (existsSync(local)) return { candidate, resolved: local };
+  }
+
   const isWindows = platform() === "win32";
   const result = isWindows
     ? spawnSync("where", [candidate.command], { encoding: "utf8", cwd: root })

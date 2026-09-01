@@ -11,13 +11,14 @@
     "lint": "node tools/lint/cli.mjs",
     "typecheck": "tsc --checkJs --noEmit --strict",
     "test": "node --test",
-    "check": "npm run lint && npm run typecheck && npm test && npm run check:generated && npm run check:hooks && npm run canaries",
+    "check": "npm run lint && npm run typecheck && npm test && npm run check:generated && npm run check:hooks && npm run canaries && npm run check:governance",
     "generate": "node plugins/harness/src/build/generate-event-map.mjs",
     "check:generated": "node plugins/harness/src/build/generate-event-map.mjs && node tools/generate-hooks.mjs && git diff --exit-code -- plugins/harness/src/generated plugins/harness/hooks",
     "check:hooks": "node tools/check-hooks.mjs",
     "doctor": "node plugins/harness/bin/harness.mjs doctor",
     "generate:hooks": "node tools/generate-hooks.mjs",
-    "canaries": "node tools/run-canaries.mjs"
+    "canaries": "node tools/run-canaries.mjs",
+    "check:governance": "node tools/check-corpus.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

@@ -15,6 +15,9 @@
 
 /** @type {Record<string, string>} */
 const COMMANDS = {
+  classify: "Record an escaped defect against one of five classifications, with its mandated remedy",
+  replay: "Address a session's transcript, event log and evidence bundles together",
+  metrics: "The R-M1.3 metrics computed from the event log, with reasons for those that cannot be",
   init: "Probe the repo, write manifest and policy, set mode observe, record baselines",
   doctor: "Full preflight: platform, deps, verb resolution, JSON purity, worktree, canaries",
   status: "Mode, ratchets, rules past review, gates that have not fired, open escalations",
@@ -22,9 +25,6 @@ const COMMANDS = {
   promote: "Tighten ratchets one notch from measured current performance",
   adapters: "List adapters, pinned upstream versions, licence, last fixture-canary result",
 };
-
-/** @type {Record<string, number>} */
-const PHASE = { promote: 7, adapters: 5 };
 
 const argv = process.argv.slice(2);
 const command = argv[0];
@@ -75,6 +75,63 @@ else if (command === "status") {
   }
 }
 
+else if (command === "classify") {
+  const { classify } = await import("../src/lib/loop.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const at = (/** @type {string} */ flag) => { const i = argv.indexOf(flag); return i === -1 ? "" : (argv[i + 1] ?? ""); };
+  try {
+    const r = classify(root, { incident: at("--incident"), classification: argv[1] ?? "", note: argv.slice(argv.indexOf("--note") + 1).join(" ") });
+    process.stderr.write(`classified as ${r.classification}\n\nMandated remedy: ${r.remedy}\n`);
+  } catch (err) {
+    process.stderr.write(`harness classify refused: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write("usage: harness classify <classification> --incident <id> --note <text>\n");
+    process.exitCode = 2;
+  }
+}
+
+else if (command === "replay") {
+  const { resolveSession } = await import("../src/lib/loop.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const s = resolveSession(root, argv[1] ?? "");
+  process.stderr.write(`session ${s.sessionId}\n  transcript: ${s.transcriptPath ?? "(none recorded)"}\n`);
+  process.stderr.write(`  events: ${s.events.length}\n`);
+  for (const b of s.evidenceBundles) process.stderr.write(`  evidence: ${b}\n`);
+  if (s.note !== "") process.stderr.write(`  ${s.note}\n`);
+}
+
+else if (command === "metrics") {
+  const { computeMetrics, formatMetrics } = await import("../src/lib/metrics.mjs");
+  const { readRecords } = await import("../src/lib/log.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  process.stderr.write(formatMetrics(computeMetrics(readRecords(root))));
+}
+
+else if (command === "promote") {
+  const { readRatchet, writeRatchet } = await import("../src/lib/mutation.mjs");
+  const { resolveRepoRoot, sessionProjectDir } = await import("../src/lib/repo.mjs");
+  const root = resolveRepoRoot(null) ?? sessionProjectDir() ?? ".";
+  const name = argv[1] ?? "mutation_score";
+  const value = Number(argv[2]);
+  if (!Number.isFinite(value)) {
+    process.stderr.write("usage: harness promote <ratchet> <measured-value>\n");
+    process.stderr.write("A ratchet moves to a MEASURED number, never to a target.\n");
+    process.exitCode = 2;
+  } else {
+    const before = readRatchet(root, name);
+    const after = writeRatchet(root, name, value);
+    process.stderr.write(`${name}: ${before ?? "unset"} -> ${after}${after !== value ? " (refused to loosen)" : ""}\n`);
+  }
+}
+
+else if (command === "adapters") {
+  process.stderr.write("harness adapters\n\n  No adapters are vendored yet.\n");
+  process.stderr.write("  Each must declare an upstream version range and a licence on the allowlist,\n");
+  process.stderr.write("  and is invoked across a process boundary so its terms never reach this source.\n");
+}
+
 else if (command === "doctor") {
   // Wired first because CI runs it on every job, on every platform. The other
   // subcommands arrive with their phases.
@@ -91,14 +148,10 @@ else if (command === undefined || command === "--help" || command === "-h") {
   for (const [name, description] of Object.entries(COMMANDS)) {
     process.stderr.write(`  ${name.padEnd(10)} ${description}\n`);
   }
-  process.stderr.write("\nPhase 0: the surface is declared; no subcommand is implemented yet.\n");
+  process.stderr.write("\nEvery subcommand is implemented. `doctor` is the load-bearing one:\n");
+  process.stderr.write("run it after every plugin update, every client upgrade, and in CI.\n");
   process.exitCode = 0;
 } else if (!(command in COMMANDS)) {
   process.stderr.write(`harness: unknown command '${command}'\n`);
-  process.exitCode = 2;
-} else {
-  process.stderr.write(
-    `harness ${command}: not implemented — arrives in Phase ${PHASE[command]}.\n`,
-  );
   process.exitCode = 2;
 }

@@ -29,6 +29,8 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Corpus lint and licence check (G2.1, M24)
+        run: npm run check:governance
       - name: Canary suite (R-F2.4)
         # A gate that has stopped firing is invisible in every other check.
         # This stages a real violation per gate and asserts the refusal.

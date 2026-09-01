@@ -12,6 +12,7 @@ import { decide, finish, diagnostic } from "./lib/emit.mjs";
 import { detectClientVersion, compareVersions } from "./lib/client.mjs";
 import { activeTaskId } from "./lib/task.mjs";
 import { runChild } from "./lib/exec.mjs";
+import { routeEscalation } from "./lib/escalation.mjs";
 
 /**
  * The single entry point for every gate.
@@ -308,6 +309,9 @@ async function main() {
       // second piece of state that could drift.
       events: readRecords(root),
       runVerb: makeRunVerb(root, manifest, Math.max(1000, handlerTimeout - 2000)),
+      // R-G6.1: the effort in force is a policy input. Confirmed present in a
+      // spawned environment, unlike the model-switch event the design wanted.
+      effort: process.env.CLAUDE_EFFORT ?? null,
     },
     watchdogMs,
   );
@@ -344,6 +348,18 @@ async function main() {
 
   const escalate = result?.["escalate"] === true;
   record({ verdict, reason: reason ?? message ?? null, ...(escalate ? { escalate: true } : {}) });
+
+  // An escalation nobody sees is an escalation that did not happen (G4.3).
+  // Routed through terminalSequence because hooks have no controlling
+  // terminal, so a direct write cannot work at all.
+  if (escalate) {
+    const routed = routeEscalation({
+      reason: reason ?? "unmet criteria",
+      task: activeTaskId(root) ?? "unknown task",
+      interactive: process.env.CLAUDE_CODE_ENTRYPOINT !== undefined,
+    });
+    diagnostic(routed.systemMessage);
+  }
   finish(
     decide({
       event: eventName,

@@ -3,15 +3,23 @@
     "by": "src/build/generate-hooks.mjs",
     "at": "generated",
     "gates": [
+      "assertion-density",
+      "authoring-provenance",
       "blast-radius",
+      "budget",
       "dod",
+      "effort-routing",
       "evidence-capture",
+      "per-batch-lint",
+      "per-edit-check",
       "plan-first",
+      "session-provenance",
       "task-completed",
       "task-created",
-      "test-tampering"
+      "test-tampering",
+      "thrash-breaker"
     ],
-    "contentHash": "fa27efb4f958269c64ac4601cbabbff3"
+    "contentHash": "7793a961ecdef9b7ce23e148f9f2a251"
   },
   "hooks": {
     "PreToolUse": [
@@ -22,9 +30,51 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "assertion-density"
+            ],
+            "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "authoring-provenance"
+            ],
+            "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
               "blast-radius"
             ],
             "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "effort-routing"
+            ],
+            "timeout": 10000
           }
         ],
         "matcher": "Edit|Write|NotebookEdit"
@@ -56,6 +106,61 @@
           }
         ],
         "matcher": "Edit|Write|NotebookEdit"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "thrash-breaker"
+            ],
+            "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "budget"
+            ],
+            "timeout": 15000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "evidence-capture"
+            ],
+            "timeout": 120000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "per-batch-lint"
+            ],
+            "timeout": 90000
+          }
+        ]
       }
     ],
     "Stop": [
@@ -73,7 +178,7 @@
         ]
       }
     ],
-    "PostToolBatch": [
+    "PostToolUse": [
       {
         "hooks": [
           {
@@ -81,9 +186,25 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
-              "evidence-capture"
+              "per-edit-check"
             ],
-            "timeout": 120000
+            "timeout": 45000
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "session-provenance"
+            ],
+            "timeout": 10000
           }
         ]
       }
