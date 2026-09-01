@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadAdapter, AdapterRefused } from "../../src/lib/adapter.mjs";
@@ -217,5 +217,9 @@ test("a local bin resolves to an absolute path, never the bare shim name", () =>
   const c = discoverCandidates(root).find((x) => x.verb === "lint");
   assert.ok(c);
   const r = probe(c, root);
-  assert.ok(String(r.resolved).startsWith("/"), `expected an absolute path, got ${r.resolved}`);
+  // isAbsolute, not startsWith("/"). The first version of this assertion was
+  // Unix-centric and failed on Windows, where an absolute path is D:\… — in
+  // the very test written to keep the Windows shim trap closed. The
+  // implementation was right; the assertion was parochial.
+  assert.ok(isAbsolute(String(r.resolved)), `expected an absolute path, got ${r.resolved}`);
 });
