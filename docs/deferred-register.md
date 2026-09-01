@@ -50,6 +50,13 @@ Phase numbering is the work order's, not design §11's (ADR-0001).
 | Private marketplace auth in automated contexts | design §13, still unverified. |
 | Third-party tooling behaviour | design §13. Mutation runners, architecture linters, SAST. Each verified against its own documentation when its adapter is built. |
 
+## Found during Phase 4
+
+| Item | Reason |
+|---|---|
+| Verb probing does not look in `node_modules/.bin` | Running `harness init` against this repository resolved `lint` and `test` but reported `typecheck` unconfigured, because `tsc` lives in `node_modules/.bin` rather than on PATH. Most JavaScript repositories are in that position, so init is less useful than it should be. The fix is not simply to add that directory: on Windows those entries are `.cmd` shims, which are not real executables and cannot be spawned in exec form (M10), so resolving them by name is the trap the moat already names. Doing it half-right is worse than deferring it, so it goes to Phase 5 with the adapter and verb-resolution work. |
+| The blocking-semantics probe still has not run | Restated here because Phase 4 shipped seven gates that all rest on design §8's documented `blocks` column. The canary suite proves each gate's logic still refuses; nothing yet proves the client honours exit 2 on `Stop`, `TaskCreated`, `TaskCompleted` or `PostToolBatch`. That remains a manual protocol against a live session. |
+
 ## Deferred hardening of this build's own tooling
 
 | Item | Reason |

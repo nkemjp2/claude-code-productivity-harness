@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -65,4 +65,37 @@ export function appendRecord(root, sessionId, record) {
     // Deliberately silent on stdout; the diagnostic channel is stderr and the
     // caller already decided the verdict.
   }
+}
+
+/**
+ * Every record, merged across per-process files (M26).
+ *
+ * The merge is the read half of the one-file-per-process design. Callers see a
+ * single stream; the interleaving that a shared handle would have produced
+ * never existed to begin with.
+ *
+ * @param {string} root
+ * @returns {Record<string, unknown>[]}
+ */
+export function readRecords(root) {
+  const dir = join(root, ".harness", "events");
+  /** @type {Record<string, unknown>[]} */
+  const out = [];
+  try {
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith(".jsonl")) continue;
+      for (const line of readFileSync(join(dir, file), "utf8").split("\n")) {
+        if (line.trim() === "") continue;
+        try {
+          out.push(JSON.parse(line));
+        } catch {
+          // A torn record is itself a finding, but not one a reader should
+          // crash on. Per-process files exist so this stays rare.
+        }
+      }
+    }
+  } catch {
+    return [];
+  }
+  return out.sort((a, b) => String(a["ts"] ?? "").localeCompare(String(b["ts"] ?? "")));
 }

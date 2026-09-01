@@ -44,15 +44,26 @@ export async function runCanaries(opts) {
       const expected = typeof c.meta["expect"] === "string" ? c.meta["expect"] : "block";
       base.expected = expected;
 
+      // A case may stage a real repository. It has to be able to: a real gate
+      // pointed at a nonexistent root resolves no task and returns `skip`, and
+      // a canary that passes by skipping proves precisely nothing — which is
+      // the failure mode canaries exist to catch, reproduced inside the canary
+      // suite.
+      const staged = typeof c.stage === "function" ? await c.stage() : null;
+
       // The forced context. Enforce regardless of the repository's own policy,
       // because the question a canary answers is "does this gate still
       // refuse?", not "is this repo currently refusing?".
       const ctx = {
-        event: c.event(),
-        root: opts.policy === undefined ? "/canary" : "/canary",
-        policy: { enabled: true, mode: "enforce" },
+        event: staged?.event ?? c.event(),
+        root: staged?.root ?? "/canary",
+        policy: { enabled: true, mode: "enforce", budgets: {} },
         forcedEnforce: true,
         gateId: gate.id,
+        commit: staged?.commit ?? "canary-commit",
+        events: staged?.events ?? [],
+        manifest: staged?.manifest ?? { verbs: {} },
+        runVerb: staged?.runVerb,
       };
 
       const outcome = await gate.check(ctx);

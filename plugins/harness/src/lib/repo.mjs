@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 /**
@@ -83,4 +83,35 @@ export function resolveRepoRoot(event) {
  */
 export function sessionProjectDir() {
   return process.env.CLAUDE_PROJECT_DIR;
+}
+
+/**
+ * The current commit, read from .git rather than by spawning git.
+ *
+ * A gate runs on every matching tool call, so a child process here is a child
+ * process per edit. Reading the files is both faster and immune to a git
+ * binary that is missing, slow, or prompting.
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+export function currentCommit(root) {
+  try {
+    const head = readFileSync(join(root, ".git", "HEAD"), "utf8").trim();
+    if (!head.startsWith("ref:")) return head;
+    const ref = head.slice(4).trim();
+    const direct = join(root, ".git", ref);
+    if (existsSync(direct)) return readFileSync(direct, "utf8").trim();
+    // A packed ref, which is the normal state for a freshly cloned repository.
+    const packed = readFileSync(join(root, ".git", "packed-refs"), "utf8");
+    for (const line of packed.split("\n")) {
+      const [sha, name] = line.trim().split(/\s+/);
+      if (name === ref && sha !== undefined) return sha;
+    }
+    return "unknown";
+  } catch {
+    // No git, no worktree, or a shape we do not recognise. "unknown" makes
+    // every bundle stale, which fails closed — the right direction here.
+    return "unknown";
+  }
 }

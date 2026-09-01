@@ -4,12 +4,14 @@ import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
 
 import { readStdin, parseEvent, str } from "./lib/event.mjs";
-import { resolveRepoRoot } from "./lib/repo.mjs";
+import { resolveRepoRoot, currentCommit } from "./lib/repo.mjs";
 import { loadPolicy } from "./lib/policy.mjs";
 import { loadManifest } from "./lib/manifest.mjs";
-import { appendRecord } from "./lib/log.mjs";
+import { appendRecord, readRecords } from "./lib/log.mjs";
 import { decide, finish, diagnostic } from "./lib/emit.mjs";
 import { detectClientVersion, compareVersions } from "./lib/client.mjs";
+import { activeTaskId } from "./lib/task.mjs";
+import { runChild } from "./lib/exec.mjs";
 
 /**
  * The single entry point for every gate.
@@ -66,6 +68,61 @@ function clientVersion() {
     /* the fallback below stands */
   }
   return detectClientVersion(process.env, audited);
+}
+
+/**
+ * The path a tool event is about, where there is one.
+ *
+ * @param {Record<string, unknown> | null} event
+ * @returns {string | null}
+ */
+function targetPath(event) {
+  const input = event?.["tool_input"];
+  if (typeof input !== "object" || input === null) return null;
+  const path = /** @type {Record<string, unknown>} */ (input)["file_path"];
+  return typeof path === "string" && path !== "" ? path : null;
+}
+
+/**
+ * Build the verb runner a gate receives.
+ *
+ * Gates invoke abstract verbs and never commands, so the same gate works
+ * across stacks (R-F1.1). Every child goes through exec.mjs, which means
+ * /dev/null on stdin and an environment with every interactive prompt
+ * disarmed — a verb that prompts would hang until the watchdog, and a timed
+ * out PreToolUse gate does not block (M4, M5).
+ *
+ * @param {string} root
+ * @param {{ verbs: Record<string, { command: string, args?: string[], required: boolean }> } | null} manifest
+ * @param {number} timeoutMs
+ */
+function makeRunVerb(root, manifest, timeoutMs) {
+  return async (/** @type {string} */ verb) => {
+    const spec = manifest?.verbs?.[verb];
+    if (spec === undefined) {
+      // Not configured is not the same as failed. `harness init` reports a verb
+      // it could not resolve rather than writing it, so an absent verb here is
+      // an expected state and says so.
+      return {
+        verb,
+        command: `(${verb} is not configured in .harness/manifest.yaml)`,
+        code: 127,
+        stdout: "",
+        stderr: `verb '${verb}' is not configured in this repository's manifest`,
+        timedOut: false,
+      };
+    }
+    const args = Array.isArray(spec.args) ? spec.args : [];
+    const result = await runChild(spec.command, args, { cwd: root, timeoutMs });
+    return {
+      verb,
+      command: [spec.command, ...args].join(" "),
+      code: result.code ?? -1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      timedOut: result.timedOut,
+    };
+  };
 }
 
 /** Where gate modules live. Overridable so fixtures can be exercised. */
@@ -159,6 +216,11 @@ async function main() {
       agent_type: str(event, "agent_type") ?? null,
       event: eventName,
       tool: str(event, "tool_name") ?? null,
+      // R-M1.1 names both of these explicitly. `target` is also what the
+      // ordering-based tamper gate reads to know whether implementation work
+      // has begun, so an absent target is a silently weakened gate.
+      target: targetPath(event),
+      task: activeTaskId(root),
       gate: gateId,
       duration_ms: Date.now() - started,
       harness_version: version,
@@ -234,7 +296,19 @@ async function main() {
 
   const { result, threw, timedOut } = await runWithWatchdog(
     gate.check,
-    { event: parsed.event, root, policy, manifest, gateId },
+    {
+      event: parsed.event,
+      root,
+      policy,
+      manifest,
+      gateId,
+      commit: currentCommit(root),
+      // Read lazily-ish but eagerly enough to stay simple: the tamper gate
+      // needs ordering, and the log is the single source for it rather than a
+      // second piece of state that could drift.
+      events: readRecords(root),
+      runVerb: makeRunVerb(root, manifest, Math.max(1000, handlerTimeout - 2000)),
+    },
     watchdogMs,
   );
 
@@ -268,13 +342,15 @@ async function main() {
     return;
   }
 
-  record({ verdict, reason: reason ?? message ?? null });
+  const escalate = result?.["escalate"] === true;
+  record({ verdict, reason: reason ?? message ?? null, ...(escalate ? { escalate: true } : {}) });
   finish(
     decide({
       event: eventName,
       verdict,
       blocking,
       failClosed,
+      ...(escalate ? { escalate: true } : {}),
       ...(reason === undefined ? {} : { reason }),
       ...(message === undefined ? {} : { message }),
     }),

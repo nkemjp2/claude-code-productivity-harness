@@ -29,6 +29,10 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Canary suite (R-F2.4)
+        # A gate that has stopped firing is invisible in every other check.
+        # This stages a real violation per gate and asserts the refusal.
+        run: npm run canaries
       - name: Validate hooks.json (M2, M23)
         run: npm run check:hooks
       - name: Preflight — harness doctor on this platform

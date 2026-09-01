@@ -48,11 +48,21 @@ export function canaryCaseExists(canaryRoot, caseName) {
 }
 
 /**
+ * A case may also export `stage()`, which builds a real repository for the
+ * gate to run against. Dropping it here — as an earlier version of this
+ * function did — meant every real gate ran against a nonexistent root,
+ * resolved no active task, and returned `skip`. The canary suite caught it,
+ * which is the entire argument for having one.
+ *
  * @param {string} canaryRoot
  * @param {string} caseName
- * @returns {Promise<{ meta: Record<string, unknown>, event: Function }>}
+ * @returns {Promise<{ meta: Record<string, unknown>, event: Function, stage?: Function }>}
  */
 export async function loadCanaryCase(canaryRoot, caseName) {
   const mod = await import(pathToFileURL(join(canaryRoot, `${caseName}.mjs`)).href);
-  return { meta: mod.meta ?? {}, event: typeof mod.event === "function" ? mod.event : () => ({}) };
+  return {
+    meta: mod.meta ?? {},
+    event: typeof mod.event === "function" ? mod.event : () => ({}),
+    ...(typeof mod.stage === "function" ? { stage: mod.stage } : {}),
+  };
 }

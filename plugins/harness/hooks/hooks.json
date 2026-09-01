@@ -1,0 +1,122 @@
+{
+  "_generated": {
+    "by": "src/build/generate-hooks.mjs",
+    "at": "generated",
+    "gates": [
+      "blast-radius",
+      "dod",
+      "evidence-capture",
+      "plan-first",
+      "task-completed",
+      "task-created",
+      "test-tampering"
+    ],
+    "contentHash": "fa27efb4f958269c64ac4601cbabbff3"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "blast-radius"
+            ],
+            "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "plan-first"
+            ],
+            "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "test-tampering"
+            ],
+            "timeout": 15000
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "dod"
+            ],
+            "timeout": 20000
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "evidence-capture"
+            ],
+            "timeout": 120000
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "task-completed"
+            ],
+            "timeout": 20000
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/src/runner.mjs",
+              "task-created"
+            ],
+            "timeout": 15000
+          }
+        ]
+      }
+    ]
+  }
+}

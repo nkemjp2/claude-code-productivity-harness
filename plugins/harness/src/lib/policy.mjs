@@ -12,11 +12,17 @@ import { parse } from "./yaml.mjs";
  * gate is then retired under R-F2.5 rather than trained around.
  *
  * @typedef {"dormant" | "observe" | "enforce"} Mode
- * @typedef {{ enabled: boolean, mode: Mode }} Policy
+ * @typedef {{ enabled: boolean, mode: Mode, budgets: Record<string, number> }} Policy
  */
 
-/** @type {Policy} */
-const DEFAULT = { enabled: true, mode: "observe" };
+/**
+ * Budgets travel with the policy because the gates need them and the runner is
+ * the only thing that reads from disk. A gate reaching for policy.yaml itself
+ * would be a second reader of the same file, and the two would drift.
+ *
+ * @type {Policy}
+ */
+const DEFAULT = { enabled: true, mode: "observe", budgets: {} };
 
 /**
  * @param {string} root
@@ -39,8 +45,15 @@ export function loadPolicy(root) {
 
   const enabled = parsed["enabled"];
   const mode = parsed["mode"];
+  const rawBudgets = parsed["budgets"];
+  /** @type {Record<string, number>} */
+  const budgets = {};
+  if (typeof rawBudgets === "object" && rawBudgets !== null && !Array.isArray(rawBudgets)) {
+    for (const [k, v] of Object.entries(rawBudgets)) if (typeof v === "number") budgets[k] = v;
+  }
   return {
     enabled: enabled === undefined ? DEFAULT.enabled : enabled === true,
     mode: mode === "dormant" || mode === "observe" || mode === "enforce" ? mode : DEFAULT.mode,
+    budgets,
   };
 }
