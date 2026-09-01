@@ -56,6 +56,23 @@ would be exactly the overclaim this harness exists to prevent.
 - **Mutation ratchet, assertion density, corpus lint, escalation routing,
   budgets, thrash breaking, session replay, classification.** All built.
 
+## Answered after the build, as mechanisms rather than reassurances
+
+Five objections were raised once the build was complete. Each is now a command
+or a policy field rather than a note.
+
+| Objection | Mechanism |
+|---|---|
+| Gates unproven in the loop; nobody knows which are noisy | `harness dry-run` replays real commits and reports a would-block rate per gate, before anything enforces |
+| Fifteen gates promote together, so one noisy gate poisons the set | Per-gate mode in `policy.yaml`; a gate is promoted or demoted individually (R-F2.5) |
+| Latency unmeasured, and most likely to end an adoption | `harness latency` — p50/p95 per gate from durations already on every record |
+| `test:affected` is absent from most repositories | `test` satisfies the requirement and the bundle records `scope: "full suite"`, so a whole-suite run never reads as affected-test evidence |
+| Escape rate — the primary objective — is unmeasurable | `harness defect <id> --commits <shas>` supplies R-L7.3a's missing half; `metrics` computes it once both halves exist, and still refuses to report zero from an empty table |
+
+Escape rate therefore moves off the unverifiable list. It is not yet *measured*
+here — that needs defects recorded against real commits over real time — but it
+is no longer unmeasurable, which was the criticism.
+
 ## Standing hardening
 
 | Item | Reason |

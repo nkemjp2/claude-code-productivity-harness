@@ -100,6 +100,57 @@ Then follow the adoption sequence:
 
 Skipping straight to `enforce` is how a harness gets switched off in week two.
 
+### Calibrate before you enforce
+
+`harness dry-run` replays your own recent commits through the gates and reports
+what each *would* have blocked. It turns "I think that gate might be noisy" into
+a number, before anything blocks:
+
+```
+harness dry-run — 173 distinct files across 60 commits
+
+  would-block rate per PreToolUse gate:
+    30.6%  blast-radius           53/173  e.g. sdks/dotnet/HeirlatchClient.cs
+     0.0%  plan-first              0/173
+```
+
+Thirty percent is comfortably enough noise to get a harness switched off — and
+in that real example the gate was not at fault. The contract declared four
+directories while the work happened across eight. Widening it to what the
+repository actually touches took the same gate to **1.2%**, and the residual was
+two root config files genuinely worth pausing over.
+
+The finding generalises: **`blast-radius` is only as good as the contract it
+reads, so a narrow contract turns the highest-value gate into the noisiest one.**
+
+It is an estimate and says so. A commit's file list is not a tool call — no
+ordering within a commit, no plan artefact as of then, no session state — so
+sequence-dependent gates are under-reported. Use it to rank, not to conclude.
+
+### Promote gates one at a time
+
+`policy.yaml` takes a per-gate mode, so three gates can enforce while twelve keep
+collecting evidence about whether they deserve to:
+
+```yaml
+mode: observe        # the repository default
+gates:
+  dod: enforce
+  blast-radius: enforce
+  per-edit-check: enforce
+```
+
+Fifteen gates promoted together means one noisy gate poisons the set, and the
+credible response to that is switching the whole thing off. This is also how a
+gate is *demoted* — back to `observe`, or `dormant` — when it fires falsely and
+is not fixed within a review cycle (R-F2.5). An unrecognised value falls back to
+the repository mode rather than to `enforce`: a typo must never silently
+escalate a gate into blocking.
+
+Watch the cost while you do it. `harness latency` reports p50 and p95 per gate,
+slowest first, because fifteen gates is fifteen processes per matching tool call
+and that is the objection most likely to end an adoption.
+
 ---
 
 ## Dormancy
@@ -196,6 +247,9 @@ who does write it.
 |---|---|
 | `harness init` | Probe the repo, write manifest and policy, land in `observe` |
 | `harness doctor` | Preflight: platform, deps, verb resolution, JSON purity, worktrees, canaries |
+| `harness dry-run [n]` | Replay the last *n* commits through the gates to estimate noise **before** enforcing |
+| `harness latency` | Per-gate p50/p95 from the event log — what having the gates on actually costs |
+| `harness defect <id> --commits <shas>` | Record a defect against the commits it is attributed to |
 | `harness status` | Mode, ratchets, configured verbs, gates that have never fired, open escalations |
 | `harness mode <m> --reason <why>` | Change enforcement level; the reason is required |
 | `harness promote <ratchet> <value>` | Move a ratchet to a **measured** number |
@@ -332,9 +386,11 @@ overstates its reach is a silently disabled gate wearing a lint rule's clothes.
 - Remove your existing diff-review tooling.
 - Achieve autonomy. The target is high-yield supervised work.
 - Claim a mutation score, an escape rate, or a coverage number it has not
-  measured. `harness metrics` reports four of eight and gives a reason for each
-  of the other four, because a metrics table that omits escape rate reads as a
-  system with no escaped defects.
+  measured. `harness metrics` computes four of eight from the log alone, a fifth
+  — escape rate — once `harness defect` has supplied the denominator R-L7.3a
+  requires, and gives a reason for each of the rest. A metrics table that omits
+  escape rate reads as a system with no escaped defects, and a zero reads as a
+  measurement.
 
 ## Licence
 
