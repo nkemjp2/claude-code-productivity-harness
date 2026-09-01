@@ -60,6 +60,35 @@ A guessed verb is a lie the harness tells itself on every subsequent run: the
 gate resolves nothing and either blocks all work or — far more likely — skips
 silently while reporting healthy.
 
+### What `init` will and will not discover
+
+**From `package.json`**, a script whose name maps to a known verb. The full set,
+which is the `SCRIPT_TO_VERB` table in `src/lib/probe.mjs`:
+
+`test` · `test:affected` · `typecheck` · `type-check` · `tsc` · `lint` ·
+`lint:diff` · `build` · `mutate` · `mutate:diff` · `arch` · `arch:check` ·
+`sast` · `deps` · `deps:check` · `migrate`
+
+A script called `check` could be a typecheck, a lint, or a deploy, so unmapped
+names are simply not candidates.
+
+**From `.github/workflows/*.yml`**, only lines that *invoke a named script* —
+`npm run <x>`, `pnpm <x>`, `yarn <x>`. Both `run:` and `- run:` forms are read.
+
+Matching a verb name anywhere in the line is far too loose, and adopting a real
+repository proved it: `run: pnpm exec playwright install --with-deps` matched
+the `deps` script name and wired `deps:check` to a **browser install** — a
+minutes-long, network-bound, side-effecting command sitting behind a checking
+verb. Worse than having no verb at all. So if your CI runs tools directly rather
+than through named scripts, `init` will report nothing from it, and that is
+deliberate.
+
+**Resolution** looks in `node_modules/.bin` before `PATH`, and records the
+resolved absolute path rather than the bare name — on Windows those entries are
+`.cmd` shims, which are not real executables and cannot be spawned in exec form.
+`harness doctor` resolves verbs through exactly the same code, so the two can
+never disagree about your repository.
+
 Then follow the adoption sequence:
 
 1. **Collect a week in `observe`.** Every block is downgraded to a logged warn.
@@ -261,9 +290,20 @@ checking is JSDoc over `.mjs` via `tsc --checkJs --noEmit --strict`; there is no
 transpile step, and the runner is directly executable by `node`.
 
 CI runs the whole suite on macOS, Linux **and Windows**. That matrix is not
-ceremony — it has caught two real defects invisible on the other two platforms:
-a log-naming scheme that relied on pids not being recycled, and a test asserting
+ceremony — it caught two real defects invisible on the other two platforms: a
+log-naming scheme that relied on pids not being recycled, and a test asserting
 `startsWith("/")` for "absolute path".
+
+Neither the suite nor the matrix caught the next four, though. Those came from
+pointing the harness at a codebase whose fixtures nobody had written: CI
+discovery mapping a browser install to `deps:check`, the `- run:` list form
+being invisible, `init` and `doctor` disagreeing about the same repository, and
+`doctor` writing diagnostic records into the event log every metric computes
+from.
+
+The lesson is the canary argument one level up. A gate that has never met a real
+violation and a harness that has never met a real repository fail the same way:
+silently, while every check stays green. **Adopt it somewhere real early.**
 
 ### Nine prohibitions, each enforced by a lint rule
 
