@@ -1,0 +1,6 @@
+{
+  "name": "harness",
+  "version": "0.1.0",
+  "description": "Deterministic control layer that gates agentic coding sessions. Dormant until a repository opts in.",
+  "author": { "name": "Nkem Joseph-Palmer" }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "claude-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A deterministic control layer that gates agentic coding sessions.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "node tools/lint/cli.mjs",
+    "typecheck": "tsc --checkJs --noEmit --strict",
+    "test": "node --test",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "5.7.3"
+  }
+}

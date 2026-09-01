@@ -1,0 +1,6 @@
+{
+  "$comment": "M24. Permissive licences only. Any copyleft result fails the build. Adapters cross a process boundary, so an upstream tool's licence does not reach this source; this list governs what may be imported or vendored.",
+  "allowed": ["MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "Unlicense", "CC0-1.0", "Python-2.0", "BlueOak-1.0.0"],
+  "deniedFamilies": ["GPL", "LGPL", "AGPL", "MPL", "EPL", "CDDL", "SSPL", "BUSL"],
+  "vendoredPaths": []
+}

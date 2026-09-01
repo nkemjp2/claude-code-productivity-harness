@@ -1,0 +1,8 @@
+{
+  "_generated": { "by": "generate-hooks.mjs", "at": "2026-09-01T00:00:00.000Z" },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit", "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/src/third-party-tool.mjs", "scan"] }] }
+    ]
+  }
+}
