@@ -223,3 +223,55 @@ test("a local bin resolves to an absolute path, never the bare shim name", () =>
   // implementation was right; the assertion was parochial.
   assert.ok(isAbsolute(String(r.resolved)), `expected an absolute path, got ${r.resolved}`);
 });
+
+/* ---------- CI-workflow discovery, found by adopting a real repository ---------- */
+
+test("a workflow flag containing a verb name is not a verb", () => {
+  // Found by running init against a real repository. The line
+  //   run: pnpm exec playwright install --with-deps
+  // matched the `deps` script name and wired deps:check to a BROWSER INSTALL —
+  // a minutes-long, network-bound, side-effecting command mapped to a checking
+  // verb. Worse than no verb at all.
+  const root = mkdtempSync(join(tmpdir(), "harness-ci-"));
+  mkdirSync(join(root, ".github", "workflows"), { recursive: true });
+  writeFileSync(
+    join(root, ".github", "workflows", "ci.yml"),
+    "jobs:\n  e2e:\n    steps:\n      - run: pnpm exec playwright install --with-deps\n",
+  );
+
+  const candidates = discoverCandidates(root);
+  assert.deepEqual(candidates, [], "a flag that merely contains a verb name is not a verb");
+
+  // And the `- run:` list form is genuinely parsed, so the assertion above is
+  // not passing simply because nothing was read. The first version of this
+  // test did exactly that.
+  writeFileSync(
+    join(root, ".github", "workflows", "ci.yml"),
+    "jobs:\n  e2e:\n    steps:\n      - run: pnpm lint\n",
+  );
+  assert.deepEqual(discoverCandidates(root).map((c) => c.verb), ["lint"]);
+});
+
+test("a workflow line that DOES invoke a named script is discovered", () => {
+  // The counterpart. CI config is the closest thing to ground truth about a
+  // repository's commands, so narrowing must not throw that away.
+  const root = mkdtempSync(join(tmpdir(), "harness-ci2-"));
+  mkdirSync(join(root, ".github", "workflows"), { recursive: true });
+  writeFileSync(
+    join(root, ".github", "workflows", "ci.yml"),
+    "jobs:\n  ci:\n    steps:\n      - run: npm run typecheck\n      - run: pnpm lint\n",
+  );
+
+  const verbs = discoverCandidates(root).map((c) => c.verb).sort();
+  assert.deepEqual(verbs, ["lint", "typecheck"]);
+});
+
+test("a bare tool invocation in CI is not mistaken for a script", () => {
+  const root = mkdtempSync(join(tmpdir(), "harness-ci3-"));
+  mkdirSync(join(root, ".github", "workflows"), { recursive: true });
+  writeFileSync(
+    join(root, ".github", "workflows", "ci.yml"),
+    "jobs:\n  ci:\n    steps:\n      - run: docker build --build-arg test=1 .\n",
+  );
+  assert.deepEqual(discoverCandidates(root), []);
+});

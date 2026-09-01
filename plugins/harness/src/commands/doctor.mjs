@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { platform, arch } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -9,6 +10,7 @@ import { sessionProjectDir, PROJECT_DIR_ENV } from "../lib/repo.mjs";
 import { runCanaries } from "../canary.mjs";
 import { runChild } from "../lib/exec.mjs";
 import { detectClientVersion } from "../lib/client.mjs";
+import { resolveVerbCommand } from "../lib/probe.mjs";
 
 /**
  * `harness doctor` — the preflight that makes the rest trustworthy.
@@ -29,25 +31,6 @@ import { detectClientVersion } from "../lib/client.mjs";
  */
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-
-/**
- * Resolve a command on this machine without invoking it.
- *
- * `where` on Windows and `command -v` elsewhere. Deliberately never spawns the
- * command itself: M10's `.cmd` shims are not real executables, and finding out
- * by trying is how a preflight hangs.
- *
- * @param {string} command
- * @returns {string | null}
- */
-function resolveCommand(command) {
-  const isWindows = platform() === "win32";
-  const probe = isWindows
-    ? spawnSync("where", [command], { encoding: "utf8" })
-    : spawnSync("sh", ["-c", `command -v ${JSON.stringify(command)}`], { encoding: "utf8" });
-  const out = (probe.stdout ?? "").trim().split(/\r?\n/)[0] ?? "";
-  return probe.status === 0 && out !== "" ? out : null;
-}
 
 /**
  * Handlers in a merged settings file that the harness did not generate (M23).
@@ -149,7 +132,7 @@ export async function runDoctor(opts) {
     /** @type {string[]} */
     const resolved = [];
     for (const [verb, spec] of Object.entries(manifest.verbs)) {
-      const path = resolveCommand(spec.command);
+      const path = resolveVerbCommand(spec.command, opts.root);
       if (path === null) (spec.required ? missingRequired : missingOptional).push(`${verb} (${spec.command})`);
       else resolved.push(`${verb} -> ${path}`);
     }
@@ -168,13 +151,25 @@ export async function runDoctor(opts) {
     });
   }
 
-  // JSON purity, observed rather than asserted: pipe a real event through the
-  // real runner and require stdout to be exactly one JSON object or nothing.
+  // JSON purity, observed rather than asserted: pipe an event through the real
+  // runner and require stdout to be exactly one JSON object or nothing.
+  //
+  // Run against a scratch repository, NOT the one being inspected. Doing it in
+  // place left __doctor_probe__ records in .harness/events/ on every run — and
+  // that log is the substrate every R-M1.3 metric computes from, so a
+  // diagnostic writing into it corrupts the gate-failure taxonomy with a gate
+  // that does not exist. The property under test is environmental (no shell,
+  // one writer, clean stdout), so a scratch root exercises it just as well.
+  const scratch = mkdtempSync(join(tmpdir(), "harness-doctor-probe-"));
+  mkdirSync(join(scratch, ".harness"), { recursive: true });
+  writeFileSync(join(scratch, ".harness", "manifest.yaml"), "verbs: {}\n", "utf8");
+  writeFileSync(join(scratch, ".harness", "policy.yaml"), "enabled: true\nmode: observe\n", "utf8");
+
   const runner = join(PLUGIN_ROOT, "src", "runner.mjs");
   const probe = await runChild(process.execPath, [runner, "__doctor_probe__"], {
-    cwd: opts.root,
+    cwd: scratch,
     timeoutMs: 10_000,
-    env: { [PROJECT_DIR_ENV]: opts.root },
+    env: { [PROJECT_DIR_ENV]: scratch },
   });
   let purity = "pass";
   let purityDetail = "stdout carried nothing, which is a clean result for an unknown gate";

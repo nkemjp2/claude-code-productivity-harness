@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -152,4 +152,51 @@ test("doctor exits non-zero when any check fails", () => {
     env: { ...process.env, CLAUDE_PROJECT_DIR: repo },
   });
   assert.equal(r.status, 1, "a failing preflight that exits 0 is a preflight CI ignores");
+});
+
+test("doctor and init agree about whether a verb resolves", async () => {
+  // Found by adopting a real repository: init reported four verbs configured
+  // while doctor reported the same four unresolvable, because doctor checked
+  // only PATH and probe had learned to look in node_modules/.bin.
+  //
+  // Two components answering the same question differently is worse than
+  // either answer being wrong, because there is no way for a reader to know
+  // which to believe. Verb resolution has one owner.
+  const dir = mkdtempSync(join(tmpdir(), "harness-agree-"));
+  mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true });
+  writeFileSync(join(dir, "node_modules", ".bin", "faketool"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  mkdirSync(join(dir, ".harness"), { recursive: true });
+  writeFileSync(join(dir, ".harness", "manifest.yaml"), "verbs:\n  lint:\n    command: faketool\n    required: false\n");
+  writeFileSync(join(dir, ".harness", "policy.yaml"), "enabled: true\nmode: observe\n");
+
+  const report = await runDoctor({
+    root: dir,
+    gateRoot: join(FIX, "valid", "gates"),
+    canaryRoot: join(FIX, "valid", "canary"),
+  });
+  const deps = report.checks.find((c) => c.name.toLowerCase().includes("runtime dependencies"));
+  assert.ok(deps);
+  assert.equal(deps.status, "pass", `doctor could not resolve a local bin that probe can: ${deps.detail}`);
+  assert.match(deps.detail, /node_modules/);
+});
+
+test("doctor does not write into the event log of the repo it inspects", async () => {
+  // Found by adopting a real repository: every doctor run left __doctor_probe__
+  // records in .harness/events/. That log is the substrate every R-M1.3 metric
+  // computes from, so a diagnostic writing into it corrupts the gate-failure
+  // taxonomy with a gate that does not exist.
+  const dir = mkdtempSync(join(tmpdir(), "harness-nopollute-"));
+  mkdirSync(join(dir, ".harness"), { recursive: true });
+  writeFileSync(join(dir, ".harness", "manifest.yaml"), "verbs: {}\n");
+  writeFileSync(join(dir, ".harness", "policy.yaml"), "enabled: true\nmode: observe\n");
+
+  await runDoctor({
+    root: dir,
+    gateRoot: join(FIX, "valid", "gates"),
+    canaryRoot: join(FIX, "valid", "canary"),
+  });
+
+  const events = join(dir, ".harness", "events");
+  const written = existsSync(events) ? readdirSync(events) : [];
+  assert.deepEqual(written, [], `doctor wrote ${written.join(", ")} into the inspected repo's log`);
 });

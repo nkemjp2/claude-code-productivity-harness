@@ -92,24 +92,32 @@ export function discoverCandidates(root) {
     }
   }
 
-  // CI configuration, read for `run:` lines. Read first and read literally:
-  // what CI already does is the closest thing to ground truth about what this
-  // repository's commands actually are.
+  // CI configuration, read for `run:` lines — including the `- run:` list form,
+  // which an earlier version of this regex missed entirely. What CI already
+  // does is the closest thing to ground truth about a repository's commands.
+  //
+  // A line only yields a verb when it INVOKES A NAMED SCRIPT: `npm run x`,
+  // `pnpm x`, `yarn x`. Matching the verb name anywhere in the line was far too
+  // loose, and adopting a real repository proved it: `pnpm exec playwright
+  // install --with-deps` matched `deps` and wired deps:check to a browser
+  // install — a minutes-long, network-bound, side-effecting command mapped to a
+  // checking verb, which is worse than having no verb at all.
   const workflows = join(root, ".github", "workflows");
   if (existsSync(workflows)) {
     for (const file of readdirSync(workflows)) {
       if (!/\.ya?ml$/.test(file)) continue;
       const text = readFileSync(join(workflows, file), "utf8");
-      for (const m of text.matchAll(/^\s*run:\s*(.+)$/gm)) {
+      for (const m of text.matchAll(/^\s*(?:-\s*)?run:\s*(.+)$/gm)) {
         const line = (m[1] ?? "").trim();
+        const invocation = /^(?:npm|pnpm|yarn)\s+(?:run\s+)?([A-Za-z][\w:.-]*)\b/.exec(line);
+        if (invocation === null) continue;
+        const script = invocation[1];
+        if (script === undefined) continue;
+        const verb = SCRIPT_TO_VERB[script];
+        if (verb === undefined) continue;
+        if (found.some((c) => c.verb === verb)) continue;
         const split = splitCommand(line);
         if (split === null) continue;
-        const verbGuess = Object.entries(SCRIPT_TO_VERB).find(([name]) =>
-          new RegExp(`\\b${name}\\b`).test(line),
-        );
-        if (verbGuess === undefined) continue;
-        const verb = verbGuess[1];
-        if (found.some((c) => c.verb === verb)) continue;
         found.push({ verb, command: split.command, args: split.args, source: `.github/workflows/${file}` });
       }
     }
@@ -125,11 +133,18 @@ export function discoverCandidates(root) {
  * would be a minutes-long side effect during setup, and M10's `.cmd` shims are
  * not real executables — finding that out by trying is how a probe hangs.
  *
- * @param {Candidate} candidate
+ * ONE owner for this question. `harness doctor` asks it too, because when
+ * doctor kept its own PATH-only copy the two disagreed about the same
+ * repository — init reporting four verbs configured while doctor reported the
+ * same four unresolvable. Two components answering one question differently is
+ * worse than either being wrong, because a reader has no way to tell which to
+ * believe.
+ *
+ * @param {string} command
  * @param {string} root
- * @returns {ProbeResult}
+ * @returns {string | null} the resolved absolute path, or null
  */
-export function probe(candidate, root) {
+export function resolveVerbCommand(command, root) {
   // Local bins first. Most JavaScript repositories keep their toolchain in
   // node_modules/.bin rather than on PATH, and reporting every one of them
   // unresolvable made `init` far less useful than it should be — found by
@@ -139,19 +154,27 @@ export function probe(candidate, root) {
   // Windows those entries are `.cmd` shims, which are not real executables and
   // cannot be spawned in exec form (M10); spawning the resolved path avoids
   // the shim-by-name trap the moat names.
-  const localCandidates =
-    platform() === "win32"
-      ? [`${candidate.command}.cmd`, `${candidate.command}.exe`, candidate.command]
-      : [candidate.command];
+  const isWindows = platform() === "win32";
+  const localCandidates = isWindows
+    ? [`${command}.cmd`, `${command}.exe`, command]
+    : [command];
   for (const name of localCandidates) {
     const local = join(root, "node_modules", ".bin", name);
-    if (existsSync(local)) return { candidate, resolved: local };
+    if (existsSync(local)) return local;
   }
 
-  const isWindows = platform() === "win32";
   const result = isWindows
-    ? spawnSync("where", [candidate.command], { encoding: "utf8", cwd: root })
-    : spawnSync("sh", ["-c", `command -v ${JSON.stringify(candidate.command)}`], { encoding: "utf8", cwd: root });
+    ? spawnSync("where", [command], { encoding: "utf8", cwd: root })
+    : spawnSync("sh", ["-c", `command -v ${JSON.stringify(command)}`], { encoding: "utf8", cwd: root });
   const first = (result.stdout ?? "").trim().split(/\r?\n/)[0] ?? "";
-  return { candidate, resolved: result.status === 0 && first !== "" ? first : null };
+  return result.status === 0 && first !== "" ? first : null;
+}
+
+/**
+ * @param {Candidate} candidate
+ * @param {string} root
+ * @returns {ProbeResult}
+ */
+export function probe(candidate, root) {
+  return { candidate, resolved: resolveVerbCommand(candidate.command, root) };
 }
